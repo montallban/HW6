@@ -142,13 +142,13 @@ def generate_fname(args, params_str):
     '''    
     # Dropout
     if args.dropout is None:
-        dropout_str = ''
+        dropout_str = 'None'
     else:
         dropout_str = 'drop_%0.2f_'%(args.dropout)
         
     # L2 regularization
     if args.L2_regularizer is None:
-        regularizer_str = ''
+        regularizer_str = 'None'
     else:
         regularizer_str = 'L2_%0.6f_'%(args.L2_regularizer)
 
@@ -156,7 +156,8 @@ def generate_fname(args, params_str):
         
     # Put it all together, including #of training folds and the experiment rotation
     if(args.network=="recurrent"):
-        return "%s/%s_recurrent_dropout_%s_ntrain_%02d_rot_%02d"%(args.results_path, args.experiment_type,
+        return "%s/%s_recurrent_dropout_%s_l2_%s_ntrain_%02d_rot_%02d"%(args.results_path, args.experiment_type,
+                                                                                          regularizer_str,
                                                                                           dropout_str,
                                                                                           args.Ntraining,
                                                                                           args.rotation)       
@@ -191,19 +192,22 @@ def execute_exp(args=None):
     # Load data
     tokenizer, len_max, n_tokens, ins_train, outs_train, ins_val, outs_val, ins_test, outs_test = prepare_data_set(args.rotation+1)    
 
-
-    max_id = len(tokenizer.word_index)
+    model = create_GRU(n_tokens, len_max, args.dropout, args.L2_regularizer)
 
     # Report if verbosity is turned on
     if args.verbose >= 1:
         print(model.summary())
-    
-    model = create_GRU(n_tokens, len_max, args.dropout, args.L2_regularizer)
-    print(model.summary())
+
+    early_stopping_cb = keras.callbacks.EarlyStopping(patience=args.patience,
+                                                      restore_best_weights=True,
+                                                      min_delta=args.min_delta)
 
     # Learn
-    history = model.fit(ins_train, outs_train, epochs=args.epochs)
-   
+    history = model.fit(ins_train, outs_train, epochs = args.epochs,
+                       steps_per_epoch=2,
+                       validation_data=(ins_val,outs_val),
+                       callbacks=[early_stopping_cb])
+
     print("val eval",model.evaluate(ins_val, outs_val))
     print("test eval", model.evaluate(ins_test, outs_test))
     # Generate log data
