@@ -59,7 +59,7 @@ def create_parser():
     # Parse the command-line arguments
     parser = argparse.ArgumentParser(description='BMI Learner', fromfile_prefix_chars='@')
     parser.add_argument('-network',type=str,default='recurrent',help="Choose shallow, deep, or inception")
-    parser.add_argument('-rotation', type=int, default=0, help='Cross-validation rotation')
+    parser.add_argument('-rotation', type=int, default=3, help='Cross-validation rotation')
     parser.add_argument('-epochs', type=int, default=100, help='Training epochs')
     parser.add_argument('-dataset', type=str, default=r"C:\Users\User\AML\HW4\core50\core50_128x128", help='Data set directory')
     parser.add_argument('-Ntraining', type=int, default=4, help='Number of training folds')
@@ -76,7 +76,7 @@ def create_parser():
     parser.add_argument('-min_delta', type=float, default=0.0, help="Minimum delta for early termination")
     parser.add_argument('-patience', type=int, default=100, help="Patience for early termination")
     parser.add_argument('-verbose', '-v', action='count', default=0, help="Verbosity level")
-    parser.add_argument('-experiment_type', type=str, default="basic", help="Experiment type")
+    parser.add_argument('-experiment_type', type=str, default="test", help="Experiment type")
     parser.add_argument('-nogo', action='store_true', help='Do not perform the experiment')
     
     return parser
@@ -109,6 +109,7 @@ def augment_args(args):
     elif args.experiment_type == "test":
         print("test")
         p = {'L2_regularizer': [None, 0.0001, 0.001, 0.005, 0.01],
+             'dropout': [None, 0.1, 0.2, 0.3, 0.4], 
              'rotation': range(5)}
     else:
         assert False, "Bad experiment type"
@@ -151,57 +152,15 @@ def generate_fname(args, params_str):
     else:
         regularizer_str = 'L2_%0.6f_'%(args.L2_regularizer)
 
+
         
     # Put it all together, including #of training folds and the experiment rotation
     if(args.network=="recurrent"):
-        return "%s/image_%s_recurrent_ntrain_%02d_rot_%02d"%(args.results_path, args.experiment_type,
-                                                                                          args.Ntraining, args.rotation)       
-    if(args.network=="inception"):
-        return "%s/image_%s_inception_filters_%s_L2_%s_ntrain_%02d_rot_%02d"%(args.results_path, args.experiment_type,
-                                                                                          filters_str,
-                                                                                          regularizer_str,
-                                                                                          args.Ntraining, args.rotation)
-
-
-    if(args.network=="cnn"):
-        return "%s/image_%s_hidden_%s_Csize_%s_Cfilters_%s_Pool_%s_%s%sntrain_%02d_rot_%02d"%(args.results_path, args.experiment_type,
-                                                                                          hidden_str, 
-                                                                                          conv_size_str,
-                                                                                          conv_filter_str,
-                                                                                          pool_str,
+        return "%s/%s_recurrent_dropout_%s_ntrain_%02d_rot_%02d"%(args.results_path, args.experiment_type,
                                                                                           dropout_str,
-                                                                                          regularizer_str,
-                                                                                          args.Ntraining, args.rotation)
+                                                                                          args.Ntraining,
+                                                                                          args.rotation)       
 
-
-
-def training_set_generator_images(ins1, ins2, outs, batch_size=10,
-                          input_1_name='input_1', 
-                          input_2_name='input_2',
-                          output_name='output'):
-    '''
-    Generator for producing random mini-batches of image training samples.
-    
-    :param ins: Full set of training set inputs (examples x row x col x chan)
-    :param outs: Corresponding set of sample (examples x nclasses)
-    :param batch_size: Number of samples for each minibatch
-    :param input_name: Name of the model layer that is used for the input of the model
-    :param output_name: Name of the model layer that is used for the output of the model
-    '''
-    
-    while True:
-        # Randomly select a set of example indices
-        example_indices = random.choices(range(ins1.shape[0]), k=batch_size)
-        
-        # The generator will produce a pair of return values: one for inputs and one for outputs
-        yield({input_1_name: ins1[example_indices,:,:,:],
-               input_2_name: ins2[example_indices,:,:,:]},
-              {output_name: outs[example_indices,:]})
-
-             #input_name: ins[example_indices+10,:,:,:]}
-
-def preprocess(chain, max_id):
-    return tf.one_hot(chain,max_id)
 
 #################################################################
 def execute_exp(args=None):
@@ -239,13 +198,14 @@ def execute_exp(args=None):
     if args.verbose >= 1:
         print(model.summary())
     
-    model = create_GRU(n_tokens, len_max)
+    model = create_GRU(n_tokens, len_max, args.dropout, args.L2_regularizer)
     print(model.summary())
 
     # Learn
-    history = model.fit(ins_train, outs_train, epochs = 10)
+    history = model.fit(ins_train, outs_train, epochs=args.epochs)
    
-    
+    print("val eval",model.evaluate(ins_val, outs_val))
+    print("test eval", model.evaluate(ins_test, outs_test))
     # Generate log data
     results = {}
     results['args'] = args
