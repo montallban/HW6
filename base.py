@@ -78,7 +78,7 @@ def create_parser():
     parser.add_argument('-verbose', '-v', action='count', default=0, help="Verbosity level")
     parser.add_argument('-experiment_type', type=str, default="test", help="Experiment type")
     parser.add_argument('-nogo', action='store_true', help='Do not perform the experiment')
-    
+    parser.add_argument('-monitor', type=str, default='val_loss', help='Choose metric for early stopping.')
     return parser
 
 #################################################################
@@ -108,8 +108,8 @@ def augment_args(args):
         p = {'rotation': range(5)}
     elif args.experiment_type == "test":
         print("test")
-        p = {'L2_regularizer': [None, 0.0001, 0.001, 0.005, 0.01],
-             'dropout': [None, 0.1, 0.2, 0.3, 0.4], 
+        p = {'L2_regularizer': [None, 0.0001, 0.001],
+             'dropout': [None, 0.1, 0.2], 
              'rotation': range(5)}
     else:
         assert False, "Bad experiment type"
@@ -142,23 +142,23 @@ def generate_fname(args, params_str):
     '''    
     # Dropout
     if args.dropout is None:
-        dropout_str = 'None'
+        dropout_str = 'drop_None'
     else:
-        dropout_str = 'drop_%0.2f_'%(args.dropout)
+        dropout_str = 'drop_%0.2f'%(args.dropout)
         
     # L2 regularization
     if args.L2_regularizer is None:
-        regularizer_str = 'None'
+        regularizer_str = 'L2_None'
     else:
-        regularizer_str = 'L2_%0.6f_'%(args.L2_regularizer)
+        regularizer_str = 'L2_%0.6f'%(args.L2_regularizer)
 
 
         
     # Put it all together, including #of training folds and the experiment rotation
     if(args.network=="recurrent"):
-        return "%s/%s_recurrent_dropout_%s_l2_%s_ntrain_%02d_rot_%02d"%(args.results_path, args.experiment_type,
-                                                                                          regularizer_str,
+        return "%s/%s_recurrent_%s_%s_ntrain_%02d_rot_%02d"%(args.results_path, args.experiment_type,
                                                                                           dropout_str,
+                                                                                          regularizer_str,
                                                                                           args.Ntraining,
                                                                                           args.rotation)       
 
@@ -201,10 +201,14 @@ def execute_exp(args=None):
     early_stopping_cb = keras.callbacks.EarlyStopping(patience=args.patience,
                                                       restore_best_weights=True,
                                                       min_delta=args.min_delta)
+  
+#    early_stopping_cb = keras.callbacks.EarlyStopping(monitor=args.monitor,patience=args.patience,
+#                                                      restore_best_weights=True,
+#                                                      min_delta=args.min_delta)
+
 
     # Learn
     history = model.fit(ins_train, outs_train, epochs = args.epochs,
-                       steps_per_epoch=2,
                        validation_data=(ins_val,outs_val),
                        callbacks=[early_stopping_cb])
 

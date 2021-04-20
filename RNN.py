@@ -8,6 +8,10 @@ from hla_support import *
 from metrics_binarized import *
 import tensorflow as tf
 
+# GRU network
+# Consists of 1 embedding layer, 2 GRU layers, and 1 dense layer
+# Each GRU layer allows l2regularization and dropout
+# There are two branches, in case dropout or l2_reg == None (not sure if necessary but I'm paranoid)
 def create_GRU(n_tokens, len_max, dropout, l2):
     embed_size = 15
     if dropout == None:
@@ -30,7 +34,7 @@ def create_GRU(n_tokens, len_max, dropout, l2):
             keras.layers.Dense(1,activation="sigmoid")
         ])
 
-    model.compile(loss="binary_crossentropy", optimizer="adam",
+    model.compile(loss="mse", optimizer="adam",
                 metrics=[MyBinaryAccuracy(),
                           MyAUC()])
 
